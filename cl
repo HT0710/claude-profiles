@@ -189,6 +189,9 @@ swap() {
   [[ -n $a && -n $b && $a != "$b" ]] || die "usage: cl swap <a> <b>"
   valid "$a"
   valid "$b"
+  for p in "$a" "$b"; do
+    profiles | grep -Fxq "$p" || die "no profile '$p' (see: cl ls)"
+  done
   [[ $OS == Darwin ]] && die "swap: macOS keeps logins in the Keychain; not supported yet"
   for p in "$a" "$b"; do
     [[ -f $(dir_of "$p")/.credentials.json ]] || die "'$p' has no login"
@@ -367,10 +370,8 @@ menu() {
       s) sync_all; pause ;;
       w)
         printf '\e[?25h'
-        read -rp " swap ${ps[sel]} with #: " n
-        p=
-        [[ $n =~ ^[1-9]$ ]] && p=${ps[n - 1]:-}
-        (swap "${ps[sel]}" "$p")
+        read -rp " swap ${ps[sel]} with (name): " n
+        (swap "${ps[sel]}" "$n")
         printf '\e[?25l'
         pause
         redo=1
