@@ -78,16 +78,16 @@ EOF
   fi
 }
 
-# Sets err five week r5 rw ws for profile $1 from cache ("-" = none; r5/rw = time to reset, ws = seconds to weekly reset).
+# Sets err five week r5 rw ws fs for profile $1 from cache ("-" = none; r5/rw = time to reset, ws/fs = seconds to weekly/5-hour reset).
 usage_of() {
-  IFS='|' read -r err five week r5 rw ws < <(jq -r 'def secs: (.resets_at // "")[:19]
+  IFS='|' read -r err five week r5 rw ws fs < <(jq -r 'def secs: (.resets_at // "")[:19]
       | if . == "" then "-" else ((. + "Z" | fromdateiso8601) - now | floor) end;
     def left: secs | if . == "-" then . else (
       if . < 60 then "now" elif . < 3600 then "\(./60|floor)m" elif . < 86400 then "\(./3600|floor)h \(./60%60|floor)m"
         else "\(./86400|floor)d \(./3600%24|floor)h" end) end;
     def pct: .utilization | if type == "number" then floor else "-" end;
-    [(.cl // "-"), (.five_hour | pct), (.seven_day | pct), (.five_hour | left), (.seven_day | left), (.seven_day | secs)]
-    | map(tostring) | join("|")' "$CACHE/$1.json" 2>/dev/null || echo "bad cache|-|-|-|-|-")
+    [(.cl // "-"), (.five_hour | pct), (.seven_day | pct), (.five_hour | left), (.seven_day | left), (.seven_day | secs), (.five_hour | secs)]
+    | map(tostring) | join("|")' "$CACHE/$1.json" 2>/dev/null || echo "bad cache|-|-|-|-|-|-")
 }
 
 B=$'\e[1m' D=$'\e[2m' R=$'\e[0m' RED=$'\e[31m' GRN=$'\e[32m' YEL=$'\e[33m' CYN=$'\e[36m' TRK=$'\e[38;5;238m' SEL=$'\e[48;5;236m'
@@ -110,13 +110,15 @@ fetch_all() {
 }
 
 # Prints the profile whose weekly usage would go to waste fastest, or nothing:
-# highest (weekly % left) / (hours to weekly reset), among those with >= 5% weekly left and 5-hour < 90%.
+# highest (weekly % left) / (hours to weekly reset), among those with >= 5% weekly left.
+# The 5-hour window only gates: skip when it is at 80% or more and resets in over 30 minutes.
 pick_best() {
   local p pick="" score top=-1
   for p in $(profiles); do
     usage_of "$p"
     [[ $err == - && $five != - && $week != - && $ws != - ]] || continue
-    ((100 - week < 5 || five >= 90)) && continue
+    ((100 - week < 5)) && continue
+    [[ $fs != - ]] && ((five >= 80 && fs > 1800)) && continue
     ((ws < 60)) && ws=60
     # Integer math: % per hour x 100.
     score=$(((100 - week) * 360000 / ws))

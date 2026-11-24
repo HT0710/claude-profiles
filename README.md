@@ -49,7 +49,7 @@ Make sure `~/.local/bin` is in your `PATH`. On macOS, install `jq` with `brew in
 
 ## Picking the best profile
 
-`cl` picks the profile whose weekly usage would go to waste fastest: the highest weekly percent left divided by the hours until the weekly reset. Profiles with less than 5% of the week left, or with the 5-hour window at 90% or more, are skipped.
+`cl` picks the profile whose weekly usage would go to waste fastest: the highest weekly percent left divided by the hours until the weekly reset. Profiles with less than 5% of the week left are skipped. So are profiles whose 5-hour window is at 80% or more and resets in over 30 minutes, because a session there would soon stop.
 
 ## Bypass mode
 
