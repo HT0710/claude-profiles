@@ -11,7 +11,7 @@
    c      alt@example.com              ━━━━━━━━━━━━   2% 4h 15m    ━━━━━━━━━━━━ 100% 25m       ● full
    d      (no login)
 
- ↑↓ move   ⏎ open   1-9 open   a auto   n new   x remove   w swap   s sync   r refresh   q quit
+ ↑↓ move   ⏎ open   1-9 open   a auto   b bypass   n new   x remove   w swap   s sync   r refresh   q quit
 ```
 
 ## Install
@@ -45,10 +45,15 @@ Make sure `~/.local/bin` is in your `PATH`. On macOS, install `jq` with `brew in
 | `cl sync [-n]` | Links missing shared files into every profile. `-n` only lists them. |
 | `cl rm <name>` | Moves a profile folder to the trash after you type its name. |
 | `cl swap <a> <b>` | Exchanges the logins of two profiles. Linux only. |
+| `cl bypass [on\|off]` | Shows or sets bypass mode. Also `b` in the menu. |
 
 ## Picking the best profile
 
 `cl` picks the profile whose weekly usage would go to waste fastest: the highest weekly percent left divided by the hours until the weekly reset. Profiles with less than 5% of the week left, or with the 5-hour window at 90% or more, are skipped.
+
+## Bypass mode
+
+With `cl bypass on`, every launch from `cl` adds `--dangerously-skip-permissions`, so Claude Code runs commands and edits files without asking. The menu title shows `bypass on` in red while it is on. The setting is saved in `~/.config/cl/config` and is off until you turn it on.
 
 ## Swap
 

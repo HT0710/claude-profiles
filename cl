@@ -4,10 +4,11 @@
 set -uo pipefail
 
 CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/cl"
+CONF="${XDG_CONFIG_HOME:-$HOME/.config}/cl/config"
 TTL=60
 OS=$(uname)
 FORCE=
-RESERVED=" main ls auto new sync rm swap help "
+RESERVED=" main ls auto new sync rm swap bypass help "
 
 die() { echo "cl: $*" >&2; exit 1; }
 command -v jq >/dev/null || die "jq missing (mac: brew install jq)"
@@ -22,6 +23,7 @@ cl new <name>       create ~/.claude-<name>, then open it to log in
 cl sync [-n]        link missing shared files into every profile (-n: dry run)
 cl rm <name>        move a profile to the trash
 cl swap <a> <b>     exchange the logins of two profiles (Linux)
+cl bypass [on|off]  show or set: launch claude with --dangerously-skip-permissions
 EOF
 }
 
@@ -265,12 +267,31 @@ sync_all() {
   done
 }
 
+bypass_on() { grep -qx 'bypass=on' "$CONF" 2>/dev/null; }
+
+bypass() {
+  case ${1:-} in
+    on | off)
+      mkdir -p "${CONF%/*}"
+      { grep -v '^bypass=' "$CONF" 2>/dev/null; echo "bypass=$1"; } >"$CONF.tmp" && mv "$CONF.tmp" "$CONF" || die "writing $CONF failed"
+      ;;
+    '') ;;
+    *) die "usage: cl bypass [on|off]" ;;
+  esac
+  if bypass_on; then echo "bypass: on"; else echo "bypass: off"; fi
+}
+
 launch() {
   local p=$1 d
   shift
   valid "$p"
   d=$(dir_of "$p")
   [[ -d $d ]] || die "no profile '$p' (see: cl ls)"
+  if bypass_on; then
+    local a flag=--dangerously-skip-permissions
+    for a in "$@"; do [[ $a == "$flag" ]] && flag=; done
+    [[ -n $flag ]] && set -- "$flag" "$@"
+  fi
   if [[ $p == main ]]; then
     unset CLAUDE_CONFIG_DIR
     [[ -t 1 ]] && printf '\e[?25h'
@@ -335,7 +356,9 @@ menu() {
       ((sel >= ${#ps[@]})) && sel=$((${#ps[@]} - 1))
     fi
     clear
-    printf '\n %s◆ Claude profiles%s  %s%d profiles · %s%s\n\n' "$B$CYN" "$R" "$D" "${#ps[@]}" "$(date +%H:%M)" "$R"
+    printf '\n %s◆ Claude profiles%s  %s%d profiles · %s%s' "$B$CYN" "$R" "$D" "${#ps[@]}" "$(date +%H:%M)" "$R"
+    bypass_on && printf '   %s%sbypass on%s' "$B" "$RED" "$R"
+    printf '\n\n'
     echo " ${lines[0]}"
     for ((i = 1; i < ${#lines[@]}; i++)); do
       l=${lines[i]}
@@ -347,7 +370,7 @@ menu() {
       fi
     done
     echo
-    printf ' '; k '↑↓' move; k '⏎' open; k 1-9 open; k a auto; k n new; k x remove; k w swap; k s sync; k r refresh; k q quit
+    printf ' '; k '↑↓' move; k '⏎' open; k 1-9 open; k a auto; k b bypass; k n new; k x remove; k w swap; k s sync; k r refresh; k q quit
     read -rsn1 key
     # Arrow keys arrive as ESC [ A; bash 3.2 read -t takes whole seconds only.
     [[ $key == $'\e' ]] && { read -rsn2 -t 1 rest; key+=${rest:-}; }
@@ -361,6 +384,7 @@ menu() {
         [[ -n $p ]] && launch "$p"
         ;;
       a) p=$(best) && launch "$p" || pause ;;
+      b) if bypass_on; then bypass off; else bypass on; fi >/dev/null ;;
       n)
         printf '\e[?25h'
         read -rp " name: " n && (new "$n") || pause
@@ -407,6 +431,7 @@ case ${1:-} in
     ;;
   rm) remove "${2:-}" ;;
   swap) swap "${2:-}" "${3:-}" ;;
+  bypass) bypass "${2:-}" ;;
   -h | --help | help) usage ;;
   *) launch "$@" ;;
 esac
