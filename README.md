@@ -11,7 +11,7 @@
    c      alt@example.com              ━━━━━━━━━━━━   2% 4h 15m    ━━━━━━━━━━━━ 100% 25m       ● full
    d      (no login)
 
- ↑↓ move   ⏎ open   1-9 open   a auto   b bypass   n new   x remove   w swap   s sync   r refresh   q quit
+ ↑↓ move   ⏎ open   1-9 open   c resume   a auto   b bypass   n new   x remove   w swap   s sync   r refresh   q quit
 ```
 
 ## Install
@@ -38,7 +38,7 @@ Make sure `~/.local/bin` is in your `PATH`. On macOS, install `jq` with `brew in
 | command | what it does |
 |---|---|
 | `cl` | Opens the menu. |
-| `cl <name> [args]` | Opens a profile. Extra arguments go to `claude`. |
+| `cl <name> [args]` | Opens a profile. Extra arguments go to `claude`, so `cl c -r` resumes a session. |
 | `cl auto [args]` | Opens the best profile, as marked with `★ best`. |
 | `cl ls [-r]` | Prints the usage table. Results are cached for 60 seconds; `-r` skips the cache. |
 | `cl new <name>` | Creates `~/.claude-<name>` and opens it so you can log in. |
@@ -50,6 +50,10 @@ Make sure `~/.local/bin` is in your `PATH`. On macOS, install `jq` with `brew in
 ## Picking the best profile
 
 `cl` picks the profile whose weekly usage would go to waste fastest: the highest weekly percent left divided by the hours until the weekly reset. Profiles with less than 5% of the week left are skipped. So are profiles whose 5-hour window is at 80% or more and resets in over 30 minutes, because a session there would soon stop.
+
+## Resume
+
+All profiles share `~/.claude/projects`, so a session started in one profile can be resumed in another, for example after a limit is hit. Press `c` in the menu, or run `cl <name> -r` or `cl auto -r`, to open Claude Code's session picker.
 
 ## Bypass mode
 

@@ -377,7 +377,7 @@ menu() {
       fi
     done
     echo
-    printf ' '; k '↑↓' move; k '⏎' open; k 1-9 open; k a auto; k b bypass; k n new; k x remove; k w swap; k s sync; k r refresh; k q quit
+    printf ' '; k '↑↓' move; k '⏎' open; k 1-9 open; k c resume; k a auto; k b bypass; k n new; k x remove; k w swap; k s sync; k r refresh; k q quit
     read -rsn1 key
     # Arrow keys arrive as ESC [ A; bash 3.2 read -t takes whole seconds only.
     [[ $key == $'\e' ]] && { read -rsn2 -t 1 rest; key+=${rest:-}; }
@@ -386,6 +386,7 @@ menu() {
       $'\e[A' | $'\eOA' | k) ((sel > 0)) && sel=$((sel - 1)) ;;
       $'\e[B' | $'\eOB' | j) ((sel < ${#ps[@]} - 1)) && sel=$((sel + 1)) ;;
       '') [[ -n ${ps[sel]:-} ]] && launch "${ps[sel]}" ;;
+      c) [[ -n ${ps[sel]:-} ]] && launch "${ps[sel]}" --resume ;;
       [1-9])
         p=${ps[key - 1]:-}
         [[ -n $p ]] && launch "$p"
