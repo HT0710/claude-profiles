@@ -64,7 +64,7 @@ If Claude Code is open on either profile, `cl` lists those sessions and asks bef
 ## Limits
 
 - **Usage numbers** come from an undocumented endpoint, `api.anthropic.com/api/oauth/usage`, so they may stop working without notice. To read them, `cl` sends each profile's own login token to `api.anthropic.com` and nowhere else.
-- **Expired tokens** show as `expired, open once`. Opening the profile in Claude Code renews the token; `cl` does not. A profile with an expired token has no usage numbers, so `★ best` and `cl auto` skip it.
+- **Expired tokens** are renewed by `cl`, which runs `claude auth status` for that profile. No model is called, so no usage is spent. If the renewal fails, the profile shows `expired, open once`, has no usage numbers, and `★ best` and `cl auto` skip it.
 - **macOS** keeps logins in the Keychain. Usage for `main` should work, but the Keychain name for other profiles is a guess, and `swap` is not supported. macOS support has not been tested yet.
 
 ## License

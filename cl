@@ -62,7 +62,12 @@ fetch() {
   tok=$(jq -r '.claudeAiOauth.accessToken // empty' <<<"$c")
   exp=$(jq -r '.claudeAiOauth.expiresAt // 0' <<<"$c")
   [[ -n $tok ]] || { echo '{"cl":"no login"}' >"$f"; return; }
-  ((exp / 1000 < $(date +%s))) && { echo '{"cl":"expired, open once"}' >"$f"; return; }
+  if ((exp / 1000 < $(date +%s))); then
+    # `claude auth status` renews an expired token and saves it; no model call.
+    if [[ $1 == main ]]; then env -u CLAUDE_CONFIG_DIR claude auth status; else CLAUDE_CONFIG_DIR=$(dir_of "$1") claude auth status; fi >/dev/null 2>&1
+    c=$(creds "$1") && tok=$(jq -r '.claudeAiOauth.accessToken // empty' <<<"$c") && exp=$(jq -r '.claudeAiOauth.expiresAt // 0' <<<"$c")
+    ((exp / 1000 < $(date +%s))) && { echo '{"cl":"expired, open once"}' >"$f"; return; }
+  fi
   # Token goes through stdin config so it never shows in `ps`.
   code=$(curl -s --max-time 15 -o "$f.tmp" -w '%{http_code}' -K - https://api.anthropic.com/api/oauth/usage <<EOF
 header = "Authorization: Bearer $tok"
