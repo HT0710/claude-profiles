@@ -494,7 +494,9 @@ g() { printf '   %s%s%s  ' "$CYN" "$1" "$R"; }
 pause() { read -rsn1 -p " press a key"; }
 
 menu() {
-  local key rest n p ps l i sel=0 redo=1 lines=()
+  local key rest n p ps l i sel=0 redo=1 lines=() ESC_T=1
+  # bash 3.2 read -t takes whole seconds only, so a lone ESC waits 1 s there.
+  ((BASH_VERSINFO[0] >= 4)) && ESC_T=0.05
   # Hidden cursor while browsing; shown again on exit, launch and text prompts.
   printf '\e[?25l'
   trap 'printf "\e[?25h"' EXIT
@@ -526,8 +528,8 @@ menu() {
     g manage; k h hold; k n new; k x remove; k w swap; k s sync
     g more; k b bypass; k r refresh; k q quit
     read -rsn1 key
-    # Arrow keys arrive as ESC [ A; bash 3.2 read -t takes whole seconds only.
-    [[ $key == $'\e' ]] && { read -rsn2 -t 1 rest; key+=${rest:-}; }
+    # Arrow keys arrive as ESC [ A. ESC alone or ESC ESC is a plain ESC; ESC plus another key (Alt+key) is ignored.
+    [[ $key == $'\e' ]] && { read -rsn2 -t "$ESC_T" rest; [[ -z $rest || ${rest:0:1} == $'\e' ]] || key+=$rest; }
     echo
     case $key in
       $'\e[A' | $'\eOA' | k) ((sel > 0)) && sel=$((sel - 1)) ;;
