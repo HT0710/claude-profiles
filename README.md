@@ -11,7 +11,7 @@
    c      alt@example.com              ━━━━━━━━━━━━   2% 4h 15m    ━━━━━━━━━━━━ 100% 25m       ● full
    d      (no login)
 
- ↑↓ move   ⏎ open   1-9 open   c resume   a auto   b bypass   n new   x remove   w swap   s sync   r refresh   q quit
+    open  ↑↓ ⏎ select  1-9 number  c resume  a auto     manage  n new  x remove  w swap  s sync     more  b bypass  r refresh  q quit
 ```
 
 ## Install
@@ -50,6 +50,8 @@ Make sure `~/.local/bin` is in your `PATH`. On macOS, install `jq` with `brew in
 ## Picking the best profile
 
 `cl` picks the profile whose weekly usage would go to waste fastest: the highest weekly percent left divided by the hours until the weekly reset. Profiles with less than 5% of the week left are skipped. Profiles whose 5-hour window is at 80% or more are skipped too, because a session there would soon stop. If no other profile qualifies, one whose 5-hour window resets within 30 minutes is picked instead.
+
+A profile at 90% or more of its 5-hour window that isn't the best pick shows `◌ wait` with the time until its window resets.
 
 ## Resume
 

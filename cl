@@ -175,16 +175,17 @@ pick_best() {
 }
 
 table() {
-  local p e top key amt
+  local p e top w=6 key amt
   fetch_all
   top=$(pick_best)
-  printf '%s  %-6s %-28s %-27s %-27s%s\n' "$D" name account '5-hour' 'weekly' "$R"
+  for p in $(profiles); do ((${#p} > w)) && w=${#p}; done
+  printf '%s  %-*s  %-28s %-27s %-27s%s\n' "$D" "$w" name account '5-hour' 'weekly' "$R"
   for p in $(profiles); do
     key=; [[ -f $(dir_of "$p")/$OVL ]] && key=1
     e=$(jq -r '.oauthAccount.emailAddress // "(no login)"' "$(cfg_of "$p")" 2>/dev/null || echo "(no login)")
     [[ -n $key ]] && e="OpenRouter key"
     ((${#e} > 28)) && e="${e:0:26}.."
-    printf '  %s%-6s%s %s%-28s%s ' "$CYN" "$p" "$R" "$B" "$e" "$R"
+    printf '  %s%-*s%s  %s%-28s%s ' "$CYN" "$w" "$p" "$R" "$B" "$e" "$R"
     usage_of "$p"
     if [[ -n $key ]]; then
       if [[ $err == '$'* ]]; then
@@ -210,6 +211,8 @@ table() {
       printf '  %s● full%s' "$RED" "$R"
     elif [[ $p == "$top" ]]; then
       printf '  %s★ best%s' "$GRN" "$R"
+    elif ((five >= 90)); then
+      printf '  %s◌ wait %s%s' "$YEL" "$r5" "$R"
     fi
     echo
   done
@@ -408,7 +411,8 @@ remove() {
   echo "moved to $trash/$dest"
 }
 
-k() { printf '%s%s%s %s%s%s   ' "$B" "$1" "$R" "$D" "$2" "$R"; }
+k() { printf '%s%s%s %s%s%s  ' "$B" "$1" "$R" "$D" "$2" "$R"; }
+g() { printf '   %s%s%s  ' "$CYN" "$1" "$R"; }
 
 pause() { read -rsn1 -p " press a key"; }
 
@@ -441,7 +445,9 @@ menu() {
       fi
     done
     echo
-    printf ' '; k '↑↓' move; k '⏎' open; k 1-9 open; k c resume; k a auto; k b bypass; k n new; k x remove; k w swap; k s sync; k r refresh; k q quit
+    printf ' '; g open; k '↑↓ ⏎' select; k 1-9 number; k c resume; k a auto
+    g manage; k n new; k x remove; k w swap; k s sync
+    g more; k b bypass; k r refresh; k q quit
     read -rsn1 key
     # Arrow keys arrive as ESC [ A; bash 3.2 read -t takes whole seconds only.
     [[ $key == $'\e' ]] && { read -rsn2 -t 1 rest; key+=${rest:-}; }
