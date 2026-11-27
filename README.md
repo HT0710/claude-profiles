@@ -11,7 +11,7 @@
    c      alt@example.com              ━━━━━━━━━━━━   2% 4h 15m    ━━━━━━━━━━━━ 100% 25m       ● full
    d      (no login)
 
-    open  ↑↓ ⏎ select  1-9 number  c resume  a auto     manage  n new  x remove  w swap  s sync     more  b bypass  r refresh  q quit
+    open  ↑↓ ⏎ select  1-9 number  c resume  a auto     manage  h hold  n new  x remove  w swap  s sync     more  b bypass  r refresh  q quit
 ```
 
 ## Install
@@ -46,6 +46,8 @@ Make sure `~/.local/bin` is in your `PATH`. On macOS, install `jq` with `brew in
 | `cl rm <name>` | Moves a profile folder to the trash after you type its name. |
 | `cl swap <a> <b>` | Exchanges the logins of two profiles. Linux only. |
 | `cl bypass [on\|off]` | Shows or sets bypass mode. Also `b` in the menu. |
+| `cl hold <name> [release\|reset\|week\|30m\|2h\|1d]` | Keeps a profile out of `★ best` and `cl auto`. Also `h` in the menu. |
+| `cl release <name>` | Ends a hold. |
 
 ## Picking the best profile
 
@@ -56,6 +58,17 @@ A profile at 90% or more of its 5-hour window that isn't the best pick shows `�
 ## Resume
 
 All profiles share `~/.claude/projects`, so a session started in one profile can be resumed in another, for example after a limit is hit. Press `c` in the menu, or run `cl <name> -r` or `cl auto -r`, to open Claude Code's session picker.
+
+## Hold
+
+A held profile is never `★ best`, and `cl auto` skips it. You can still open it with `cl <name>`. The table shows `⏸ held` and, for a timed hold, the time left.
+
+- `cl hold b`, or `cl hold b release`, lasts until `cl release b`.
+- `cl hold b reset` lasts until b's 5-hour window resets, and `cl hold b week` until its weekly limit resets. Both fail if b has no reset time, for example an unused window or a key profile.
+- `cl hold b 2h` lasts that long. `30m` and `1d` also work.
+- In the menu, `h` releases a held profile. Otherwise it asks how long to hold it, with the same words; Enter cancels.
+
+Holds are saved in `~/.config/cl/config`.
 
 ## Bypass mode
 

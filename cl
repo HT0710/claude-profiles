@@ -8,7 +8,7 @@ CONF="${XDG_CONFIG_HOME:-$HOME/.config}/cl/config"
 TTL=60
 OS=$(uname)
 FORCE=
-RESERVED=" main ls auto new sync rm swap bypass help "
+RESERVED=" main ls auto new sync rm swap bypass hold release help "
 # Settings overlay of an OpenRouter API-key profile; holds the key, so mode 600.
 OVL=openrouter.json
 
@@ -26,6 +26,9 @@ cl sync [-n]        link missing shared files into every profile (-n: dry run)
 cl rm <name>        move a profile to the trash
 cl swap <a> <b>     exchange the logins of two profiles (Linux)
 cl bypass [on|off]  show or set: launch claude with --dangerously-skip-permissions
+cl hold <name> [release|reset|week|30m|2h|1d]
+                    keep a profile out of auto and best: until release, its 5-hour or weekly reset, or a time
+cl release <name>   end a hold
 EOF
 }
 
@@ -154,6 +157,7 @@ fetch_all() {
 pick_best() {
   local p pick="" score top=-1 late="" ltop=-1 keyp=""
   for p in $(profiles); do
+    held "$p" && continue
     usage_of "$p"
     if [[ -f $(dir_of "$p")/$OVL ]]; then
       # Only a key whose spend loaded and is under its limit.
@@ -196,6 +200,7 @@ table() {
       else
         printf '%s%-54s%s' "$D" "$err" "$R"
       fi
+      hold_tag "$p"
       [[ $p == "$top" ]] && printf '  %s★ best%s' "$GRN" "$R"
       printf '  %s$ per use%s\n' "$MAG" "$R"
       continue
@@ -203,11 +208,15 @@ table() {
     if [[ $err != - || $five == - || $week == - ]]; then
       [[ $err == - ]] && err="no data"
       [[ $err == "no login" ]] && err=
-      printf '%s%s%s\n' "$D" "$err" "$R"
+      printf '%s%s%s' "$D" "$err" "$R"
+      hold_tag "$p"
+      echo
       continue
     fi
     printf '%s %s%-8s%s  %s %s%-8s%s' "$(bar "$five")" "$D" "$r5" "$R" "$(bar "$week")" "$D" "$rw" "$R"
-    if ((five >= 100 || week >= 100)); then
+    if held "$p"; then
+      hold_tag "$p"
+    elif ((five >= 100 || week >= 100)); then
       printf '  %s● full%s' "$RED" "$R"
     elif [[ $p == "$top" ]]; then
       printf '  %s★ best%s' "$GRN" "$R"
@@ -343,6 +352,73 @@ sync_all() {
 
 bypass_on() { grep -qx 'bypass=on' "$CONF" 2>/dev/null; }
 
+# Holds are config lines "hold.<name>=<end epoch>"; 0 = until released. Expired lines are ignored.
+hold_end() { sed -n "s/^hold\.$1=//p" "$CONF" 2>/dev/null | tail -1; }
+
+held() {
+  local e
+  e=$(hold_end "$1")
+  [[ -n $e ]] && { ((e == 0)) || ((e > $(date +%s))); }
+}
+
+# Seconds as "45m", "3h 5m" or "2d 4h".
+dur() {
+  local s=$1
+  if ((s < 3600)); then echo "$((s / 60))m"; elif ((s < 86400)); then echo "$((s / 3600))h $((s / 60 % 60))m"; else echo "$((s / 86400))d $((s / 3600 % 24))h"; fi
+}
+
+hold() {
+  local p=${1:-} how=${2:-} now end n
+  [[ -n $p ]] || die "usage: cl hold <name> [release|reset|week|30m|2h|1d]"
+  valid "$p"
+  [[ -d $(dir_of "$p") ]] || die "no profile '$p' (see: cl ls)"
+  now=$(date +%s)
+  case $how in
+    '' | release) end=0 ;;
+    reset | week)
+      mkdir -p "$CACHE" && chmod 700 "$CACHE"
+      fetch "$p"
+      usage_of "$p"
+      n=$fs
+      [[ $how == week ]] && n=$ws
+      [[ $n != - ]] || die "$p has no $([[ $how == week ]] && echo weekly || echo 5-hour) reset time"
+      ((n > 0)) || die "$p's reset time has passed; run cl ls -r and retry"
+      end=$((now + (n > 60 ? n : 60)))
+      ;;
+    *[0-9][mhd])
+      n=${how%?}
+      [[ $n =~ ^[0-9]{1,6}$ ]] && n=$((10#$n)) && ((n > 0)) || die "bad time '$how' (use 30m, 2h or 1d)"
+      case $how in *m) n=$((n * 60)) ;; *h) n=$((n * 3600)) ;; *d) n=$((n * 86400)) ;; esac
+      end=$((now + n))
+      ;;
+    *) die "usage: cl hold <name> [release|reset|week|30m|2h|1d]" ;;
+  esac
+  mkdir -p "${CONF%/*}"
+  touch "$CONF" && grep -v "^hold\.$p=" "$CONF" >"$CONF.tmp"
+  # grep exits 1 when no line is left; only 2+ is an error.
+  (($? <= 1)) && echo "hold.$p=$end" >>"$CONF.tmp" && mv "$CONF.tmp" "$CONF" || die "writing $CONF failed"
+  if ((end == 0)); then echo "held $p until: cl release $p"; else echo "held $p for $(dur $((end - now)))"; fi
+}
+
+release() {
+  local p=${1:-}
+  [[ -n $p ]] || die "usage: cl release <name>"
+  valid "$p"
+  held "$p" || { echo "$p is not held"; return; }
+  # grep exits 1 when no line is left; only 2+ is an error.
+  grep -v "^hold\.$p=" "$CONF" >"$CONF.tmp"
+  (($? <= 1)) && mv "$CONF.tmp" "$CONF" || die "writing $CONF failed"
+  echo "released $p"
+}
+
+# Prints the hold tag for profile $1, or nothing.
+hold_tag() {
+  local e
+  held "$1" || return
+  e=$(hold_end "$1")
+  if ((e == 0)); then printf '  %s⏸ held%s' "$YEL" "$R"; else printf '  %s⏸ held %s%s' "$YEL" "$(dur $((e - $(date +%s))))" "$R"; fi
+}
+
 bypass() {
   case ${1:-} in
     on | off)
@@ -408,6 +484,7 @@ remove() {
   [[ $OS == Darwin ]] || printf '[Trash Info]\nPath=%s\nDeletionDate=%s\n' "$d" "$(date +%Y-%m-%dT%H:%M:%S)" \
     >"$HOME/.local/share/Trash/info/$dest.trashinfo"
   rm -f "$CACHE/$p.json"
+  held "$p" && release "$p" >/dev/null
   echo "moved to $trash/$dest"
 }
 
@@ -446,7 +523,7 @@ menu() {
     done
     echo
     printf ' '; g open; k '↑↓ ⏎' select; k 1-9 number; k c resume; k a auto
-    g manage; k n new; k x remove; k w swap; k s sync
+    g manage; k h hold; k n new; k x remove; k w swap; k s sync
     g more; k b bypass; k r refresh; k q quit
     read -rsn1 key
     # Arrow keys arrive as ESC [ A; bash 3.2 read -t takes whole seconds only.
@@ -463,6 +540,18 @@ menu() {
         ;;
       a) p=$(best) && launch "$p" || pause ;;
       b) if bypass_on; then bypass off; else bypass on; fi >/dev/null ;;
+      h)
+        p=${ps[sel]:-}
+        if [[ -z $p ]]; then :
+        elif held "$p"; then (release "$p") >/dev/null || pause
+        else
+          printf '\e[?25h'
+          read -rp " hold $p until (release, reset, week, 2h; Enter = cancel): " n
+          [[ -n $n ]] && { (hold "$p" "$n") >/dev/null || pause; }
+          printf '\e[?25l'
+        fi
+        redo=1
+        ;;
       n)
         printf '\e[?25h'
         read -rp " name: " n && (new "$n") || pause
@@ -510,6 +599,8 @@ case ${1:-} in
   rm) remove "${2:-}" ;;
   swap) swap "${2:-}" "${3:-}" ;;
   bypass) bypass "${2:-}" ;;
+  hold) hold "${2:-}" "${3:-}" ;;
+  release) release "${2:-}" ;;
   -h | --help | help) usage ;;
   *) launch "$@" ;;
 esac
