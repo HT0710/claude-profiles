@@ -26,6 +26,22 @@ chmod +x ~/.local/bin/cl
 
 Make sure `~/.local/bin` is in your `PATH`. On macOS, install `jq` with `brew install jq` if it is missing.
 
+### Zsh completion
+
+`_cl` completes commands with descriptions, profile names and hold times. Put it in a folder in your `fpath`, then register it in `~/.zshrc`:
+
+```bash
+mkdir -p ~/.zsh/completions
+curl -fsSL https://raw.githubusercontent.com/HT0710/claude-profiles/main/_cl -o ~/.zsh/completions/_cl
+```
+
+```zsh
+fpath=(~/.zsh/completions $fpath)   # before compinit or oh-my-zsh
+autoload -Uz _cl && compdef _cl cl  # after compinit
+```
+
+If you cloned the repo, link the file instead of downloading it, so `git pull` keeps it current: `ln -s ~/claude-profiles/_cl ~/.zsh/completions/_cl`.
+
 ## How profiles work
 
 - `main` is the default `~/.claude` folder.

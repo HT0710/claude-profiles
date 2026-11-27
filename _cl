@@ -1,0 +1,56 @@
+#compdef cl
+# zsh completion for cl. Install: link into a folder in $fpath, then `autoload -Uz _cl; compdef _cl cl`.
+
+_cl() {
+  local -a names opens cmds holds
+  (($+commands[cl])) && names=(${(f)"$(cl __names 2>/dev/null)"})
+  opens=(${^names}:'open profile')
+  cmds=(
+    'auto:open the best profile'
+    'ls:usage table'
+    'new:create a profile and log in'
+    'sync:link shared files into every profile'
+    'rm:move a profile to the trash'
+    'swap:exchange the logins of two profiles'
+    'bypass:show or set bypass mode'
+    'hold:keep a profile out of auto and best'
+    'release:end a hold'
+    'help:show usage'
+  )
+  holds=(
+    'release:until cl release'
+    'reset:until the 5-hour reset'
+    'week:until the weekly reset'
+    '30m:for 30 minutes'
+    '2h:for 2 hours'
+    '1d:for 1 day'
+  )
+  if ((CURRENT == 2)); then
+    _describe -t profiles profile opens
+    _describe -t commands command cmds
+    return
+  fi
+  case $words[2] in
+    hold)
+      if ((CURRENT == 3)); then _describe -t profiles profile names
+      elif ((CURRENT == 4)); then _describe -t holds 'hold until' holds; fi
+      ;;
+    release | rm) ((CURRENT == 3)) && _describe -t profiles profile names ;;
+    swap) ((CURRENT <= 4)) && _describe -t profiles profile names ;;
+    bypass) ((CURRENT == 3)) && _values 'bypass' on off ;;
+    ls) ((CURRENT == 3)) && _values 'option' '-r[skip the 60 s cache]' ;;
+    sync) ((CURRENT == 3)) && _values 'option' '-n[dry run]' ;;
+    new) ((CURRENT == 3)) && _message 'new profile name' ;;
+    help | -h | --help) ;;
+    *)
+      local -a flags=(
+        '-r:resume a session (picker)'
+        '-c:continue the latest session'
+        '-p:print the answer and exit'
+      )
+      _describe -t flags 'claude option' flags
+      ;;
+  esac
+}
+
+_cl "$@"

@@ -8,7 +8,7 @@ CONF="${XDG_CONFIG_HOME:-$HOME/.config}/cl/config"
 TTL=60
 OS=$(uname)
 FORCE=
-RESERVED=" main ls auto new sync rm swap bypass hold release help "
+RESERVED=" main ls auto new sync rm swap bypass hold release help __names "
 # Settings overlay of an OpenRouter API-key profile; holds the key, so mode 600.
 OVL=openrouter.json
 
@@ -601,6 +601,8 @@ case ${1:-} in
   bypass) bypass "${2:-}" ;;
   hold) hold "${2:-}" "${3:-}" ;;
   release) release "${2:-}" ;;
+  # For the zsh completion in _cl.
+  __names) profiles ;;
   -h | --help | help) usage ;;
   *) launch "$@" ;;
 esac
