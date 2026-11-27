@@ -95,7 +95,7 @@ With `cl bypass on`, every launch from `cl` adds `--dangerously-skip-permissions
 
 `cl ttl 1h` makes every launch from `cl` set `CLAUDE_CODE_PROMPT_CACHE_TTL=1h`, so Claude Code keeps its prompt cache for an hour instead of the default. `cl ttl default` stops setting it. The menu title shows `cache 1h` while it is set, and `t` cycles default, 5m and 1h. The setting is saved in `~/.config/cl/config`. It needs Claude Code 2.1.242 or later, and 1-hour cache writes cost more.
 
-For one run, put `--ttl` right after the profile name or `auto`, as in `cl b --ttl 5m` or `cl auto --ttl 1h -c`; `--ttl=5m` also works. It overrides `cl ttl` and any `CLAUDE_CODE_PROMPT_CACHE_TTL` you exported. An exported value also overrides `cl ttl`, and the menu title then shows it as `cache 5m (env)`.
+For one run, put `--ttl` before or right after the profile name or `auto`, as in `cl --ttl 5m b`, `cl b --ttl 5m` or `cl auto --ttl 1h -c`; `--ttl=5m` also works. `cl --ttl 1h` alone opens the menu, and every profile opened from it uses 1h. It overrides `cl ttl` and any `CLAUDE_CODE_PROMPT_CACHE_TTL` you exported. An exported value also overrides `cl ttl`, and the menu title then shows it as `cache 5m (env)`.
 
 ## OpenRouter key profile
 

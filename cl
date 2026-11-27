@@ -20,7 +20,7 @@ usage() {
 cl                  menu
 cl <name> [args]    open profile (main = ~/.claude), args go to claude
 cl auto [args]      open the profile with most room left
-                    --ttl 5m|1h right after the name or auto: prompt cache TTL for this run
+                    --ttl 5m|1h before or right after the name or auto: prompt cache TTL for this run
 cl ls [-r]          usage table (-r: skip 60 s cache)
 cl new <name>       create ~/.claude-<name>, then open it to log in
 cl sync [-n]        link missing shared files into every profile (-n: dry run)
@@ -657,6 +657,21 @@ menu() {
     esac
   done
 }
+
+# cl's own options come before the subcommand or profile name.
+while [[ ${1:-} == --* ]]; do
+  case $1 in
+    --ttl=*) set -- --ttl "${1#--ttl=}" "${@:2}" ;;
+    --ttl)
+      [[ ${2:-} == 5m || ${2:-} == 1h ]] || die "--ttl takes 5m or 1h"
+      # Exported like a user's own value, so a --ttl after the name still wins in launch().
+      export CLAUDE_CODE_PROMPT_CACHE_TTL=$2
+      shift 2
+      ;;
+    --help) break ;;
+    *) die "unknown option '$1' (see: cl help)" ;;
+  esac
+done
 
 case ${1:-} in
   '') menu ;;
