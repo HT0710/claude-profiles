@@ -455,6 +455,7 @@ launch() {
   d=$(dir_of "$p")
   [[ -d $d ]] || die "no profile '$p' (see: cl ls)"
   # --ttl beats a CLAUDE_CODE_PROMPT_CACHE_TTL the user exported, which beats cl ttl.
+  [[ ${1:-} == --ttl=* ]] && set -- --ttl "${1#--ttl=}" "${@:2}"
   if [[ ${1:-} == --ttl ]]; then
     [[ ${2:-} == 5m || ${2:-} == 1h ]] || die "--ttl takes 5m or 1h"
     export CLAUDE_CODE_PROMPT_CACHE_TTL=$2
@@ -550,7 +551,9 @@ menu() {
     fi
     clear
     printf '\n %s◆ Claude profiles%s  %s%d profiles · %s%s' "$B$CYN" "$R" "$D" "${#ps[@]}" "$(date +%H:%M)" "$R"
-    n=$(ttl_conf) && [[ -n $n ]] && printf '   %scache %s%s' "$B$CYN" "$n" "$R"
+    # An exported CLAUDE_CODE_PROMPT_CACHE_TTL wins at launch, so show it instead of the saved one.
+    if [[ -n ${CLAUDE_CODE_PROMPT_CACHE_TTL:-} ]]; then printf '   %scache %s (env)%s' "$B$CYN" "$CLAUDE_CODE_PROMPT_CACHE_TTL" "$R"
+    else n=$(ttl_conf) && [[ -n $n ]] && printf '   %scache %s%s' "$B$CYN" "$n" "$R"; fi
     bypass_on && printf '   %s%sbypass on%s' "$B" "$RED" "$R"
     [[ -n $from ]] && printf '   %s%sswap %s with:%s' "$B" "$YEL" "$from" "$R"
     printf '\n\n'
