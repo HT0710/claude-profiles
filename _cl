@@ -13,6 +13,7 @@ _cl() {
     'rm:move a profile to the trash'
     'swap:exchange the logins of two profiles'
     'bypass:show or set bypass mode'
+    'ttl:show or set the prompt cache TTL'
     'hold:keep a profile out of auto and best'
     'release:end a hold'
     'help:show usage'
@@ -38,6 +39,7 @@ _cl() {
     release | rm) ((CURRENT == 3)) && _describe -t profiles profile names ;;
     swap) ((CURRENT <= 4)) && _describe -t profiles profile names ;;
     bypass) ((CURRENT == 3)) && _values 'bypass' on off ;;
+    ttl) ((CURRENT == 3)) && _values 'ttl' 5m 1h default ;;
     ls) ((CURRENT == 3)) && _values 'option' '-r[skip the 60 s cache]' ;;
     sync) ((CURRENT == 3)) && _values 'option' '-n[dry run]' ;;
     new) ((CURRENT == 3)) && _message 'new profile name' ;;
@@ -48,6 +50,7 @@ _cl() {
         '-c:continue the latest session'
         '-p:print the answer and exit'
       )
+      ((CURRENT == 3)) && flags+=('--ttl:prompt cache TTL for this run (5m or 1h)')
       _describe -t flags 'claude option' flags
       ;;
   esac

@@ -8,7 +8,7 @@ CONF="${XDG_CONFIG_HOME:-$HOME/.config}/cl/config"
 TTL=60
 OS=$(uname)
 FORCE=
-RESERVED=" main ls auto new sync rm swap bypass hold release help __names "
+RESERVED=" main ls auto new sync rm swap bypass ttl hold release help __names "
 # Settings overlay of an OpenRouter API-key profile; holds the key, so mode 600.
 OVL=openrouter.json
 
@@ -20,12 +20,15 @@ usage() {
 cl                  menu
 cl <name> [args]    open profile (main = ~/.claude), args go to claude
 cl auto [args]      open the profile with most room left
+                    --ttl 5m|1h right after the name or auto: prompt cache TTL for this run
 cl ls [-r]          usage table (-r: skip 60 s cache)
 cl new <name>       create ~/.claude-<name>, then open it to log in
 cl sync [-n]        link missing shared files into every profile (-n: dry run)
 cl rm <name>        move a profile to the trash
 cl swap <a> <b>     exchange the logins of two profiles (Linux)
 cl bypass [on|off]  show or set: launch claude with --dangerously-skip-permissions
+cl ttl [5m|1h|default]
+                    show or set: prompt cache TTL for every launch
 cl hold <name> [release|reset|week|30m|2h|1d]
                     keep a profile out of auto and best: until release, its 5-hour or weekly reset, or a time
 cl release <name>   end a hold
@@ -352,6 +355,8 @@ sync_all() {
 
 bypass_on() { grep -qx 'bypass=on' "$CONF" 2>/dev/null; }
 
+ttl_conf() { sed -n 's/^ttl=//p' "$CONF" 2>/dev/null | tail -1; }
+
 # Holds are config lines "hold.<name>=<end epoch>"; 0 = until released. Expired lines are ignored.
 hold_end() { sed -n "s/^hold\.$1=//p" "$CONF" 2>/dev/null | tail -1; }
 
@@ -431,12 +436,32 @@ bypass() {
   if bypass_on; then echo "bypass: on"; else echo "bypass: off"; fi
 }
 
+ttl() {
+  case ${1:-} in
+    5m | 1h | default)
+      mkdir -p "${CONF%/*}"
+      { grep -v '^ttl=' "$CONF" 2>/dev/null; [[ $1 == default ]] || echo "ttl=$1"; } >"$CONF.tmp" && mv "$CONF.tmp" "$CONF" || die "writing $CONF failed"
+      ;;
+    '') ;;
+    *) die "usage: cl ttl [5m|1h|default]" ;;
+  esac
+  echo "cache ttl: $(t=$(ttl_conf); echo "${t:-default}")"
+}
+
 launch() {
   local p=$1 d
   shift
   valid "$p"
   d=$(dir_of "$p")
   [[ -d $d ]] || die "no profile '$p' (see: cl ls)"
+  # --ttl beats a CLAUDE_CODE_PROMPT_CACHE_TTL the user exported, which beats cl ttl.
+  if [[ ${1:-} == --ttl ]]; then
+    [[ ${2:-} == 5m || ${2:-} == 1h ]] || die "--ttl takes 5m or 1h"
+    export CLAUDE_CODE_PROMPT_CACHE_TTL=$2
+    shift 2
+  elif [[ -z ${CLAUDE_CODE_PROMPT_CACHE_TTL:-} && -n $(ttl_conf) ]]; then
+    export CLAUDE_CODE_PROMPT_CACHE_TTL=$(ttl_conf)
+  fi
   if bypass_on; then
     local a flag=--dangerously-skip-permissions
     for a in "$@"; do [[ $a == "$flag" ]] && flag=; done
@@ -525,6 +550,7 @@ menu() {
     fi
     clear
     printf '\n %s◆ Claude profiles%s  %s%d profiles · %s%s' "$B$CYN" "$R" "$D" "${#ps[@]}" "$(date +%H:%M)" "$R"
+    n=$(ttl_conf) && [[ -n $n ]] && printf '   %scache %s%s' "$B$CYN" "$n" "$R"
     bypass_on && printf '   %s%sbypass on%s' "$B" "$RED" "$R"
     [[ -n $from ]] && printf '   %s%sswap %s with:%s' "$B" "$YEL" "$from" "$R"
     printf '\n\n'
@@ -552,7 +578,7 @@ menu() {
     else
       printf ' '; g open; k '↑↓ ⏎' select; k 1-9 number; k c resume; k a auto
       g manage; k h hold; k n new; k x remove; k w swap; k s sync
-      g more; k b bypass; k r refresh; k q quit
+      g more; k b bypass; k t ttl; k r refresh; k q quit
     fi
     read -rsn1 key
     # Arrow keys arrive as ESC [ A. ESC alone or ESC ESC is a plain ESC; ESC plus another key (Alt+key) is ignored.
@@ -586,6 +612,7 @@ menu() {
         ;;
       a) p=$(best) && launch "$p" || pause ;;
       b) if bypass_on; then bypass off; else bypass on; fi >/dev/null ;;
+      t) case $(ttl_conf) in '') ttl 5m ;; 5m) ttl 1h ;; *) ttl default ;; esac >/dev/null ;;
       h)
         p=${ps[sel]:-}
         if [[ -z $p ]]; then :
@@ -647,6 +674,7 @@ case ${1:-} in
   rm) remove "${2:-}" ;;
   swap) swap "${2:-}" "${3:-}" ;;
   bypass) bypass "${2:-}" ;;
+  ttl) ttl "${2:-}" ;;
   hold) hold "${2:-}" "${3:-}" ;;
   release) release "${2:-}" ;;
   # For the zsh completion in _cl.
