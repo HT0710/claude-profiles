@@ -9,6 +9,8 @@ TTL=60
 OS=$(uname)
 FORCE=
 RESERVED=" main ls auto new sync rm swap bypass help "
+# Settings overlay of an OpenRouter API-key profile; holds the key, so mode 600.
+OVL=openrouter.json
 
 die() { echo "cl: $*" >&2; exit 1; }
 command -v jq >/dev/null || die "jq missing (mac: brew install jq)"
@@ -58,6 +60,7 @@ creds() {
 fetch() {
   local f="$CACHE/$1.json" c tok exp code
   [[ -z $FORCE && -f $f ]] && (($(date +%s) - $(mtime "$f") < TTL)) && return
+  [[ -f $(dir_of "$1")/$OVL ]] && { fetch_key "$1"; return; }
   c=$(creds "$1") || { echo '{"cl":"no login"}' >"$f"; return; }
   tok=$(jq -r '.claudeAiOauth.accessToken // empty' <<<"$c")
   exp=$(jq -r '.claudeAiOauth.expiresAt // 0' <<<"$c")
@@ -83,6 +86,26 @@ EOF
   fi
 }
 
+# Caches the OpenRouter key info (spend, limit) of profile $1.
+fetch_key() {
+  local f="$CACHE/$1.json" tok code
+  tok=$(jq -r '.env.ANTHROPIC_AUTH_TOKEN // empty' "$(dir_of "$1")/$OVL")
+  [[ -n $tok ]] || { echo '{"cl":"no key in '"$OVL"'"}' >"$f"; return; }
+  code=$(curl -s --max-time 15 -o "$f.tmp" -w '%{http_code}' -K - https://openrouter.ai/api/v1/key <<EOF
+header = "Authorization: Bearer $tok"
+EOF
+  )
+  if [[ $code == 200 ]]; then
+    # Keep only the numbers; the response also carries a masked key label.
+    jq '{data: (.data | {usage, limit, limit_remaining, limit_reset, effective_budget: {resets_at: .effective_budget.resets_at}})}' "$f.tmp" >"$f" || rm -f "$f"
+    rm -f "$f.tmp"
+  else
+    # No stale numbers: a key that fails to load (revoked, offline) must not be picked.
+    rm -f "$f.tmp"
+    echo "{\"cl\":\"fetch failed (HTTP ${code:-none})\"}" >"$f"
+  fi
+}
+
 # Sets err five week r5 rw ws fs for profile $1 from cache ("-" = none; r5/rw = time to reset, ws/fs = seconds to weekly/5-hour reset).
 usage_of() {
   IFS='|' read -r err five week r5 rw ws fs < <(jq -r 'def secs: (.resets_at // "")[:19]
@@ -91,11 +114,20 @@ usage_of() {
       if . < 60 then "now" elif . < 3600 then "\(./60|floor)m" elif . < 86400 then "\(./3600|floor)h \(./60%60|floor)m"
         else "\(./86400|floor)d \(./3600%24|floor)h" end) end;
     def pct: .utilization | if type == "number" then floor else "-" end;
-    [(.cl // "-"), (.five_hour | pct), (.seven_day | pct), (.five_hour | left), (.seven_day | left), (.seven_day | secs), (.five_hour | secs)]
+    def usd: . * 100 | round | "$\(. / 100 | floor)" + if . % 100 == 0 then "" else ".\(. % 100 + 100 | tostring | .[1:])" end;
+    # usage is all-time; spend in the current limit period is limit - limit_remaining.
+    def spent: if (.limit // 0) > 0 and .limit_remaining != null then .limit - .limit_remaining else .usage end;
+    def key: .data | "\(spent | usd)"
+      + if .limit != null then " of \(.limit | usd)" + ({monthly: " this month", weekly: " this week", daily: " today"}[.limit_reset // ""] // "")
+        else " spent" end;
+    # Key profiles: five = % of the spend limit, r5 = time to its reset.
+    if .cl == null and .data then [key, (.data | if .limit == null then "-" elif .limit <= 0 then 100 else spent * 100 / .limit | floor end), "-",
+      (.data.effective_budget // {} | left), "-", "-", "-"]
+    else [(.cl // "-"), (.five_hour | pct), (.seven_day | pct), (.five_hour | left), (.seven_day | left), (.seven_day | secs), (.five_hour | secs)] end
     | map(tostring) | join("|")' "$CACHE/$1.json" 2>/dev/null || echo "bad cache|-|-|-|-|-|-")
 }
 
-B=$'\e[1m' D=$'\e[2m' R=$'\e[0m' RED=$'\e[31m' GRN=$'\e[32m' YEL=$'\e[33m' CYN=$'\e[36m' TRK=$'\e[38;5;238m' SEL=$'\e[48;5;236m'
+B=$'\e[1m' D=$'\e[2m' R=$'\e[0m' RED=$'\e[31m' GRN=$'\e[32m' YEL=$'\e[33m' CYN=$'\e[36m' MAG=$'\e[35m' TRK=$'\e[38;5;238m' SEL=$'\e[48;5;236m'
 
 # 12-cell bar plus percent, colored by level.
 bar() {
@@ -118,10 +150,16 @@ fetch_all() {
 # highest (weekly % left) / (hours to weekly reset), among those with >= 5% weekly left.
 # The 5-hour window only gates: at 80% or more, skip; if it resets within 30 minutes, keep as a fallback
 # used only when no profile is usable now.
+# Key profiles bill per use while accounts are prepaid, so a key is picked only when no account is usable now.
 pick_best() {
-  local p pick="" score top=-1 late="" ltop=-1
+  local p pick="" score top=-1 late="" ltop=-1 keyp=""
   for p in $(profiles); do
     usage_of "$p"
+    if [[ -f $(dir_of "$p")/$OVL ]]; then
+      # Only a key whose spend loaded and is under its limit.
+      if [[ -z $keyp && $err == '$'* ]] && { [[ $five == - ]] || ((five < 100)); }; then keyp=$p; fi
+      continue
+    fi
     [[ $err == - && $five != - && $week != - && $ws != - ]] || continue
     ((100 - week < 5)) && continue
     ((ws < 60)) && ws=60
@@ -133,19 +171,34 @@ pick_best() {
       pick=$p top=$score
     fi
   done
-  echo "${pick:-$late}"
+  echo "${pick:-${keyp:-$late}}"
 }
 
 table() {
-  local p e top
+  local p e top key amt
   fetch_all
   top=$(pick_best)
   printf '%s  %-6s %-28s %-27s %-27s%s\n' "$D" name account '5-hour' 'weekly' "$R"
   for p in $(profiles); do
+    key=; [[ -f $(dir_of "$p")/$OVL ]] && key=1
     e=$(jq -r '.oauthAccount.emailAddress // "(no login)"' "$(cfg_of "$p")" 2>/dev/null || echo "(no login)")
+    [[ -n $key ]] && e="OpenRouter key"
     ((${#e} > 28)) && e="${e:0:26}.."
     printf '  %s%-6s%s %s%-28s%s ' "$CYN" "$p" "$R" "$B" "$e" "$R"
     usage_of "$p"
+    if [[ -n $key ]]; then
+      if [[ $err == '$'* ]]; then
+        if [[ $five == - ]]; then printf '%-26s  ' ''; else printf '%s %s%-8s%s  ' "$(bar "$five")" "$D" "$r5" "$R"; fi
+        amt=${err%% *}
+        e=${err#* }
+        printf '%s%s%s %s%-*s%s' "$B" "$amt" "$R" "$D" $((25 - ${#amt})) "${e:0:$((25 - ${#amt}))}" "$R"
+      else
+        printf '%s%-54s%s' "$D" "$err" "$R"
+      fi
+      [[ $p == "$top" ]] && printf '  %s★ best%s' "$GRN" "$R"
+      printf '  %s$ per use%s\n' "$MAG" "$R"
+      continue
+    fi
     if [[ $err != - || $five == - || $week == - ]]; then
       [[ $err == - ]] && err="no data"
       [[ $err == "no login" ]] && err=
@@ -256,9 +309,16 @@ own() {
   return 1
 }
 
-# Links every ~/.claude entry missing from profile dir $1. Never replaces an existing entry.
+# Links every ~/.claude entry missing from profile dir $1. Never replaces an existing entry,
+# except settings.json of a key profile, rebuilt as main's settings plus $OVL.
 mirror() {
   local src="$HOME/.claude" dst=$1 path name
+  if [[ -f $dst/$OVL ]]; then
+    echo "  build settings.json"
+    # rm first: an old tmp file would keep its mode and ignore the umask.
+    [[ -n ${DRY:-} ]] || { rm -f "$dst/settings.json.tmp"; (umask 077; jq -s '.[0] * .[1]' "$src/settings.json" "$dst/$OVL" >"$dst/settings.json.tmp") &&
+      mv "$dst/settings.json.tmp" "$dst/settings.json"; } || { rm -f "$dst/settings.json.tmp"; return 1; }
+  fi
   for path in "$src"/* "$src"/.[!.]*; do
     [[ -e $path || -L $path ]] || continue
     name=${path##*/}

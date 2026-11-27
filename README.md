@@ -59,6 +59,14 @@ All profiles share `~/.claude/projects`, so a session started in one profile can
 
 With `cl bypass on`, every launch from `cl` adds `--dangerously-skip-permissions`, so Claude Code runs commands and edits files without asking. The menu title shows `bypass on` in red while it is on. The setting is saved in `~/.config/cl/config` and is off until you turn it on.
 
+## OpenRouter key profile
+
+A profile can use an OpenRouter API key instead of a claude.ai login. To set one up, run `mkdir ~/.claude-<name>`, then `touch ~/.claude-<name>/.cl-profile`, then write `~/.claude-<name>/openrouter.json` with mode 600. That file holds the settings that differ from main, such as `model` and an `env` block with `ANTHROPIC_BASE_URL=https://openrouter.ai/api` and `ANTHROPIC_AUTH_TOKEN=<key>`.
+
+- Before each launch and on `cl sync`, `settings.json` is rebuilt as main's settings plus `openrouter.json`, so changes to main's settings carry over. A `/model` choice saved in that profile is overwritten; put the model in `openrouter.json` instead.
+- `cl ls` shows the key's spend, limit and reset time from OpenRouter. The key is sent only on `curl`'s standard input, so it never shows in `ps`.
+- `★ best` and `cl auto` pick a key profile only when no account is usable now, because accounts are prepaid and a key is billed per use. An account whose 5-hour window resets within 30 minutes comes after the key. A key at its spend limit, or whose spend failed to load, is never picked.
+
 ## Swap
 
 `cl swap a b` exchanges the login and account data of two profiles, so that, for example, plain `claude` uses another account. Projects and settings stay where they are. Both profiles are backed up first as `*.bak-cl-<time>`, and running the same swap again undoes it.
