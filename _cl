@@ -26,7 +26,16 @@ _cl() {
     '2h:for 2 hours'
     '1d:for 1 day'
   )
+  # Leading cl options: complete the value, then drop them so positions below stay the same.
+  if [[ $words[2] == --ttl ]]; then
+    ((CURRENT == 3)) && { _values 'ttl' 5m 1h; return; }
+    ((CURRENT > 3)) && { words=($words[1] $words[4,-1]); ((CURRENT -= 2)); }
+  elif [[ $words[2] == --ttl=* ]] && ((CURRENT > 2)); then
+    words=($words[1] $words[3,-1]); ((CURRENT -= 1))
+  fi
   if ((CURRENT == 2)); then
+    local -a opts=('--ttl:prompt cache TTL for this run (5m or 1h)')
+    [[ $PREFIX == -* ]] && _describe -t options option opts
     _describe -t profiles profile opens
     _describe -t commands command cmds
     return
