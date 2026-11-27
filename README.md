@@ -48,6 +48,7 @@ If you cloned the repo, link the file instead of downloading it, so `git pull` k
 - Every other profile is a folder named `~/.claude-<name>` that holds a Claude Code login or config. Other `~/.claude-*` folders are ignored. `cl` starts Claude Code with `CLAUDE_CONFIG_DIR` pointing at it.
 - Each profile keeps its own login, `.claude.json`, cache and backups.
 - Everything else in `~/.claude` is linked into each profile, so settings, `CLAUDE.md`, hooks, history and projects are shared. Links are added before each launch and never replace a file that already exists.
+- To rename a profile, close its sessions and run `mv ~/.claude-a ~/.claude-b`. A hold on `a` does not move, so hold `b` again if needed.
 
 ## Commands
 
