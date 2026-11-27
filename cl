@@ -116,20 +116,24 @@ fetch_all() {
 
 # Prints the profile whose weekly usage would go to waste fastest, or nothing:
 # highest (weekly % left) / (hours to weekly reset), among those with >= 5% weekly left.
-# The 5-hour window only gates: skip when it is at 80% or more and resets in over 30 minutes.
+# The 5-hour window only gates: at 80% or more, skip; if it resets within 30 minutes, keep as a fallback
+# used only when no profile is usable now.
 pick_best() {
-  local p pick="" score top=-1
+  local p pick="" score top=-1 late="" ltop=-1
   for p in $(profiles); do
     usage_of "$p"
     [[ $err == - && $five != - && $week != - && $ws != - ]] || continue
     ((100 - week < 5)) && continue
-    [[ $fs != - ]] && ((five >= 80 && fs > 1800)) && continue
     ((ws < 60)) && ws=60
     # Integer math: % per hour x 100.
     score=$(((100 - week) * 360000 / ws))
-    ((score > top)) && pick=$p top=$score
+    if ((five >= 80)); then
+      [[ $fs != - ]] && ((fs <= 1800 && score > ltop)) && late=$p ltop=$score
+    elif ((score > top)); then
+      pick=$p top=$score
+    fi
   done
-  echo "$pick"
+  echo "${pick:-$late}"
 }
 
 table() {
