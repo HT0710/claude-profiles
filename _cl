@@ -45,6 +45,7 @@ _cl() {
     new) ((CURRENT == 3)) && _message 'new profile name' ;;
     help | -h | --help) ;;
     *)
+      [[ $words[3] == --ttl ]] && ((CURRENT == 4)) && { _values 'ttl' 5m 1h; return; }
       local -a flags=(
         '-r:resume a session (picker)'
         '-c:continue the latest session'
