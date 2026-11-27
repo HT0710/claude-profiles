@@ -11,7 +11,7 @@
    c      alt@example.com              ━━━━━━━━━━━━   2% 4h 15m    ━━━━━━━━━━━━ 100% 25m       ● full
    d      (no login)
 
-    open  ↑↓ ⏎ select  1-9 number  c resume  a auto     manage  h hold  n new  x remove  w swap  s sync     more  b bypass  r refresh  q quit
+    open  ↑↓ ⏎ select  1-9 number  c resume  a auto     manage  h hold  n new  x remove  w swap  s sync     more  b bypass  t ttl  r refresh  q quit
 ```
 
 ## Install
@@ -62,6 +62,7 @@ If you cloned the repo, link the file instead of downloading it, so `git pull` k
 | `cl rm <name>` | Moves a profile folder to the trash after you type its name. |
 | `cl swap <a> <b>` | Exchanges the logins of two profiles. Linux only. |
 | `cl bypass [on\|off]` | Shows or sets bypass mode. Also `b` in the menu. |
+| `cl ttl [5m\|1h\|default]` | Shows or sets the prompt cache TTL. Also `t` in the menu. |
 | `cl hold <name> [release\|reset\|week\|30m\|2h\|1d]` | Keeps a profile out of `★ best` and `cl auto`. Also `h` in the menu. |
 | `cl release <name>` | Ends a hold. |
 
@@ -89,6 +90,12 @@ Holds are saved in `~/.config/cl/config`.
 ## Bypass mode
 
 With `cl bypass on`, every launch from `cl` adds `--dangerously-skip-permissions`, so Claude Code runs commands and edits files without asking. The menu title shows `bypass on` in red while it is on. The setting is saved in `~/.config/cl/config` and is off until you turn it on.
+
+## Prompt cache TTL
+
+`cl ttl 1h` makes every launch from `cl` set `CLAUDE_CODE_PROMPT_CACHE_TTL=1h`, so Claude Code keeps its prompt cache for an hour instead of the default. `cl ttl default` stops setting it. The menu title shows `cache 1h` while it is set, and `t` cycles default, 5m and 1h. The setting is saved in `~/.config/cl/config`. It needs Claude Code 2.1.242 or later, and 1-hour cache writes cost more.
+
+For one run, put `--ttl` right after the profile name or `auto`, as in `cl b --ttl 5m` or `cl auto --ttl 1h -c`. It overrides `cl ttl` and any `CLAUDE_CODE_PROMPT_CACHE_TTL` you exported.
 
 ## OpenRouter key profile
 
