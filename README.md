@@ -102,6 +102,8 @@ A profile can use an OpenRouter API key instead of a claude.ai login. To set one
 
 `cl swap a b` exchanges the login and account data of two profiles, so that, for example, plain `claude` uses another account. Projects and settings stay where they are. Both profiles are backed up first as `*.bak-cl-<time>`, and running the same swap again undoes it.
 
+In the menu, `w` marks the selected profile with `⇄ from`. Move to the other profile with ↑↓ and press Enter to swap, or Esc to cancel.
+
 If Claude Code is open on either profile, `cl` lists those sessions and asks before going on. A running session keeps its old account and may write its login back when its token renews, so close them first when you can.
 
 ## Limits

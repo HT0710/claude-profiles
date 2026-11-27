@@ -493,8 +493,22 @@ g() { printf '   %s%s%s  ' "$CYN" "$1" "$R"; }
 
 pause() { read -rsn1 -p " press a key"; }
 
+# swap needs a claude.ai login on both sides.
+can_swap() { [[ -n $1 && -f $(dir_of "$1")/.credentials.json ]]; }
+
+# Prints the next row index from sel in direction $1 (1 or -1) that can be a swap target, or fails.
+swap_next() {
+  local i=$((sel + $1))
+  while ((i >= 0 && i < ${#ps[@]})); do
+    [[ ${ps[i]} != "$from" ]] && can_swap "${ps[i]}" && { echo "$i"; return; }
+    i=$((i + $1))
+  done
+  return 1
+}
+
 menu() {
-  local key rest n p ps l i sel=0 redo=1 lines=() ESC_T=1
+  # from: swap source while picking its target with the arrow keys.
+  local key rest n p ps l i sel=0 redo=1 lines=() from= ESC_T=1
   # bash 3.2 read -t takes whole seconds only, so a lone ESC waits 1 s there.
   ((BASH_VERSINFO[0] >= 4)) && ESC_T=0.05
   # Hidden cursor while browsing; shown again on exit, launch and text prompts.
@@ -512,10 +526,19 @@ menu() {
     clear
     printf '\n %s◆ Claude profiles%s  %s%d profiles · %s%s' "$B$CYN" "$R" "$D" "${#ps[@]}" "$(date +%H:%M)" "$R"
     bypass_on && printf '   %s%sbypass on%s' "$B" "$RED" "$R"
+    [[ -n $from ]] && printf '   %s%sswap %s with:%s' "$B" "$YEL" "$from" "$R"
     printf '\n\n'
     echo " ${lines[0]}"
     for ((i = 1; i < ${#lines[@]}; i++)); do
       l=${lines[i]}
+      p=${ps[i - 1]:-}
+      if [[ -n $from && $p == "$from" ]]; then
+        printf '%s▶%s  ⇄ from%s\n' "$B$YEL" "$(sed $'s/\e\\[[0-9;]*m//g' <<<"$l")" "$R"
+        continue
+      elif [[ -n $from ]] && ! can_swap "$p"; then
+        printf ' %s%s  ✕ no login%s\n' "$D" "$(sed $'s/\e\\[[0-9;]*m//g' <<<"$l")" "$R"
+        continue
+      fi
       if ((i - 1 == sel)); then
         # Re-apply the background after each reset; \e[K fills it to the line end.
         printf '%s%s▌%s%s\e[K%s\n' "$SEL" "$CYN" "$R$SEL" "${l//$R/$R$SEL}" "$R"
@@ -524,13 +547,34 @@ menu() {
       fi
     done
     echo
-    printf ' '; g open; k '↑↓ ⏎' select; k 1-9 number; k c resume; k a auto
-    g manage; k h hold; k n new; k x remove; k w swap; k s sync
-    g more; k b bypass; k r refresh; k q quit
+    if [[ -n $from ]]; then
+      printf ' '; g swap; k '↑↓' pick; k '⏎' swap; k esc cancel
+    else
+      printf ' '; g open; k '↑↓ ⏎' select; k 1-9 number; k c resume; k a auto
+      g manage; k h hold; k n new; k x remove; k w swap; k s sync
+      g more; k b bypass; k r refresh; k q quit
+    fi
     read -rsn1 key
     # Arrow keys arrive as ESC [ A. ESC alone or ESC ESC is a plain ESC; ESC plus another key (Alt+key) is ignored.
     [[ $key == $'\e' ]] && { read -rsn2 -t "$ESC_T" rest; [[ -z $rest || ${rest:0:1} == $'\e' ]] || key+=$rest; }
     echo
+    if [[ -n $from ]]; then
+      case $key in
+        $'\e[A' | $'\eOA' | k) n=$(swap_next -1) && sel=$n ;;
+        $'\e[B' | $'\eOB' | j) n=$(swap_next 1) && sel=$n ;;
+        '')
+          if [[ ${ps[sel]:-} != "$from" ]]; then
+            printf '\e[?25h'
+            (swap "$from" "${ps[sel]}")
+            printf '\e[?25l'
+            pause
+            from= redo=1
+          fi
+          ;;
+        q | $'\e') from= ;;
+      esac
+      continue
+    fi
     case $key in
       $'\e[A' | $'\eOA' | k) ((sel > 0)) && sel=$((sel - 1)) ;;
       $'\e[B' | $'\eOB' | j) ((sel < ${#ps[@]} - 1)) && sel=$((sel + 1)) ;;
@@ -562,12 +606,14 @@ menu() {
         ;;
       s) sync_all; pause ;;
       w)
-        printf '\e[?25h'
-        read -rp " swap ${ps[sel]} with (name): " n
-        (swap "${ps[sel]}" "$n")
-        printf '\e[?25l'
-        pause
-        redo=1
+        p=${ps[sel]:-}
+        if [[ -z $p ]]; then :
+        elif ! can_swap "$p"; then echo " '$p' has no login"; pause
+        else
+          from=$p
+          # Start on the nearest swappable row below, else above.
+          if n=$(swap_next 1) || n=$(swap_next -1); then sel=$n; else from=; echo " nothing to swap with"; pause; fi
+        fi
         ;;
       r) FORCE=1 redo=1 ;;
       x)
