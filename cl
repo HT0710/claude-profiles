@@ -496,12 +496,12 @@ pause() { read -rsn1 -p " press a key"; }
 # swap needs a claude.ai login on both sides.
 can_swap() { [[ -n $1 && -f $(dir_of "$1")/.credentials.json ]]; }
 
-# Prints the next row index from sel in direction $1 (1 or -1) that can be a swap target, or fails.
+# Prints the next row index from sel in direction $1 (1 or -1), wrapping around, that can be a swap target, or fails.
 swap_next() {
-  local i=$((sel + $1))
-  while ((i >= 0 && i < ${#ps[@]})); do
+  local n=${#ps[@]} i=$sel step
+  for ((step = 1; step < n; step++)); do
+    i=$(((i + $1 + n) % n))
     [[ ${ps[i]} != "$from" ]] && can_swap "${ps[i]}" && { echo "$i"; return; }
-    i=$((i + $1))
   done
   return 1
 }
@@ -576,8 +576,8 @@ menu() {
       continue
     fi
     case $key in
-      $'\e[A' | $'\eOA' | k) ((sel > 0)) && sel=$((sel - 1)) ;;
-      $'\e[B' | $'\eOB' | j) ((sel < ${#ps[@]} - 1)) && sel=$((sel + 1)) ;;
+      $'\e[A' | $'\eOA' | k) ((${#ps[@]})) && sel=$(((sel - 1 + ${#ps[@]}) % ${#ps[@]})) ;;
+      $'\e[B' | $'\eOB' | j) ((${#ps[@]})) && sel=$(((sel + 1) % ${#ps[@]})) ;;
       '') [[ -n ${ps[sel]:-} ]] && launch "${ps[sel]}" ;;
       c) [[ -n ${ps[sel]:-} ]] && launch "${ps[sel]}" --resume ;;
       [1-9])
@@ -611,8 +611,8 @@ menu() {
         elif ! can_swap "$p"; then echo " '$p' has no login"; pause
         else
           from=$p
-          # Start on the nearest swappable row below, else above.
-          if n=$(swap_next 1) || n=$(swap_next -1); then sel=$n; else from=; echo " nothing to swap with"; pause; fi
+          # Start on the next swappable row below, wrapping to the top.
+          if n=$(swap_next 1); then sel=$n; else from=; echo " nothing to swap with"; pause; fi
         fi
         ;;
       r) FORCE=1 redo=1 ;;
